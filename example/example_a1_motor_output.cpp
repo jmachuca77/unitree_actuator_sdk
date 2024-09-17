@@ -21,6 +21,8 @@ int main() {
 
     cmd.motorType = MotorType::A1;
     data.motorType = MotorType::A1;
+
+    // Set motor to BRAKE mode before reading initial position
     cmd.mode  = queryMotorMode(MotorType::A1, MotorMode::BRAKE);
     cmd.id    = 0;
     cmd.kp    = 0.0;
@@ -39,15 +41,20 @@ int main() {
     std::cout << "Enter the desired position in degrees relative to the initial position: ";
     std::cin >> desired_position;
 
+    // Ask the user for the desired speed
+    float user_speed;
+    std::cout << "Enter the desired speed in degrees per second: ";
+    std::cin >> user_speed;
+
     // Step 3: Calculate the target position
     float target_position = initial_position + desired_position;
 
-    // Step 4: Move to the target position incrementally
+    // Step 4: Move to the target position incrementally with controlled speed
     float current_position = initial_position;
-    float step_size = 1.0; // Define the step size for increments
-    float max_speed = 100.0; // Maximum speed limit (degrees per second)
+    float max_speed = user_speed; // Use the user-provided speed
     float min_speed = 5.0;  // Minimum speed limit to avoid stopping too early
     float ramp_distance = 10.0; // Distance within which to start slowing down
+    float time_interval = 0.001; // Time interval between steps in seconds (20ms)
 
     while (fabs(target_position - current_position) > 0.1) { // Continue until close to the target
         // Determine the distance to the target
@@ -61,9 +68,8 @@ int main() {
             if (speed < min_speed) speed = min_speed;
         }
 
-        // Calculate the incremental step
-        float increment = (distance_to_target > 0 ? step_size : -step_size);
-        increment *= (speed / max_speed); // Scale step by speed
+        // Calculate the incremental step based on the desired speed
+        float increment = (speed * time_interval) * (distance_to_target > 0 ? 1 : -1);
 
         // Update current position
         current_position += increment;
@@ -83,13 +89,17 @@ int main() {
         cmd.tau   = 0.0;
         serial.sendRecv(&cmd, &data);
 
-        std::cout << "Current Position: " << current_position << " degrees\n";
-        usleep(1000); // Sleep for 20 ms between steps
+        // Print current position relative to the initial position
+        float relative_position = current_position - initial_position;
+        std::cout << "Current Position Relative to Initial: " << relative_position << " degrees\n";
+        usleep(time_interval * 1000000); // Sleep for the time interval in microseconds
     }
 
+    std::cout << "Reached desired position.\n";
+    usleep(2000000); // Sleep for the time interval in microseconds
+    // Set motor to BRAKE mode after reaching the final position
     cmd.mode  = queryMotorMode(MotorType::A1, MotorMode::BRAKE);
     serial.sendRecv(&cmd, &data);
-    std::cout << "Reached desired position.\n";
 
     return 0;
 }
